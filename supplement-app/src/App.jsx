@@ -36,57 +36,59 @@ const TIME_EMOJI = {
   "下午茶": "🍵", "晚餐前": "🌙", "晚餐後": "🌙", "晚餐中": "🌙", "睡前": "😴"
 };
 
-// ── Sample data ───────────────────────────────────────────────
-const SAMPLE_SUPPLEMENTS = [
-  {
-    id: 1,
-    name: "NAD+ 果凍",
-    brand: "PRIME",
-    type: "jelly",
-    color: "#5B9BD5",
-    schedule: [{ time: "起床後", dose: "1 包", water: "" }],
-    note: "空腹效果最佳",
-  },
-  {
-    id: 2,
-    name: "消化酵素益生菌粉",
-    brand: "Isotonix",
-    type: "powder",
-    color: "#6B9E8A",
-    schedule: [
-      { time: "午餐後", dose: "1 小白湯匙", water: "60cc 水" },
-      { time: "晚餐後", dose: "1 小白湯匙", water: "60cc 水" },
+// ── Client data ───────────────────────────────────────────────
+// 每位客人的資料在這裡設定，網址用 #shaw / #xin 區分
+const CLIENT_DATA = {
+  shaw: {
+    name: "Shaw",
+    supplements: [
+      {
+        id: 1,
+        name: "NAD+ 果凍",
+        brand: "PRIME",
+        type: "jelly",
+        color: "#5B9BD5",
+        schedule: [{ time: "起床後", dose: "1 包", water: "" }],
+        note: "空腹效果最佳",
+      },
+      {
+        id: 2,
+        name: "消化酵素益生菌粉",
+        brand: "Isotonix",
+        type: "powder",
+        color: "#6B9E8A",
+        schedule: [
+          { time: "午餐後", dose: "1 小白湯匙", water: "60cc 水" },
+          { time: "晚餐後", dose: "1 小白湯匙", water: "60cc 水" },
+        ],
+        note: "搭配溫水，不超過 40°C",
+      },
     ],
-    note: "搭配溫水，不超過 40°C",
   },
-  {
-    id: 3,
-    name: "肌酸 + 牛磺酸粉",
-    brand: "PRIME",
-    type: "powder",
-    color: "#3D9970",
-    schedule: [{ time: "早餐後", dose: "1 湯匙（5g）", water: "200cc 水" }],
-    note: "可加入果汁或水中",
+  xin: {
+    name: "Xin",
+    supplements: [
+      {
+        id: 1,
+        name: "鎂片",
+        brand: "PRIME",
+        type: "tablet",
+        color: "#9B59B6",
+        schedule: [{ time: "睡前", dose: "2 錠", water: "150cc 水" }],
+        note: "助眠效果佳",
+      },
+      {
+        id: 2,
+        name: "OPC-3 粉",
+        brand: "Isotonix",
+        type: "powder",
+        color: "#E8935A",
+        schedule: [{ time: "早餐前", dose: "1 湯匙", water: "120cc 水" }],
+        note: "空腹吸收效果較好",
+      },
+    ],
   },
-  {
-    id: 4,
-    name: "鎂片",
-    brand: "PRIME",
-    type: "tablet",
-    color: "#9B59B6",
-    schedule: [{ time: "睡前", dose: "2 錠", water: "150cc 水" }],
-    note: "助眠效果佳",
-  },
-  {
-    id: 5,
-    name: "OPC-3 粉",
-    brand: "Isotonix",
-    type: "powder",
-    color: "#E8935A",
-    schedule: [{ time: "早餐前", dose: "1 湯匙", water: "120cc 水" }],
-    note: "空腹吸收效果較好",
-  },
-];
+};
 
 // ── Utility ───────────────────────────────────────────────────
 function groupByTime(supplements) {
@@ -468,15 +470,12 @@ function ProgressRing({ total, done }) {
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const [clients, setClients] = useState([
-    { id: 1, name: "示範客戶", supplements: SAMPLE_SUPPLEMENTS },
-  ]);
-  const [activeClientId, setActiveClientId] = useState(1);
   const [checked, setChecked] = useState({});
-  const [view, setView] = useState("today"); // "today" | "manage"
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
   const [date, setDate] = useState(new Date());
+
+  // 從網址 hash 判斷是哪位客人，例如 #shaw 或 #xin
+  const hash = window.location.hash.replace("#", "").toLowerCase();
+  const clientData = CLIENT_DATA[hash];
 
   // Reset checkmarks at midnight
   useEffect(() => {
@@ -487,46 +486,34 @@ export default function App() {
     return () => clearInterval(t);
   }, [date]);
 
-  const client = clients.find(c => c.id === activeClientId);
-  const grouped = groupByTime(client?.supplements || []);
+  const supplements = clientData?.supplements || [];
+  const grouped = groupByTime(supplements);
   const allKeys = Object.entries(grouped).flatMap(([t, items]) => items.map((_, i) => `${t}-${i}`));
   const doneCount = allKeys.filter(k => checked[k]).length;
 
   const handleToggle = (key) => setChecked(c => ({ ...c, [key]: !c[key] }));
 
-  const handleSaveSupplement = (form) => {
-    const isEdit = editingId !== null;
-    setClients(cs => cs.map(c => {
-      if (c.id !== activeClientId) return c;
-      const sups = isEdit
-        ? c.supplements.map(s => s.id === editingId ? { ...form, id: s.id } : s)
-        : [...c.supplements, { ...form, id: Date.now() }];
-      return { ...c, supplements: sups };
-    }));
-    setShowForm(false);
-    setEditingId(null);
-  };
-
-  const handleDeleteSupplement = (id) => {
-    setClients(cs => cs.map(c =>
-      c.id === activeClientId
-        ? { ...c, supplements: c.supplements.filter(s => s.id !== id) }
-        : c
-    ));
-  };
-
-  const handleCreateClient = (name) => {
-    const id = Date.now();
-    setClients(cs => [...cs, { id, name, supplements: [] }]);
-    setActiveClientId(id);
-  };
-
-  const handleDeleteClient = (id) => {
-    setClients(cs => cs.filter(c => c.id !== id));
-    if (activeClientId === id) setActiveClientId(clients.find(c => c.id !== id)?.id);
-  };
-
   const today = date.toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" });
+
+  // 找不到客人時顯示提示
+  if (!clientData) {
+    return (
+      <div style={{
+        fontFamily: "'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif",
+        background: TOKEN.cream, minHeight: "100vh",
+        maxWidth: 540, margin: "0 auto",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div style={{ textAlign: "center", padding: 40, color: TOKEN.gray400 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: TOKEN.forest, marginBottom: 8 }}>
+            請使用專屬連結開啟
+          </div>
+          <div style={{ fontSize: 13 }}>請聯繫芯蒂營養師取得你的專屬連結</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -539,172 +526,58 @@ export default function App() {
         background: TOKEN.forest, padding: "20px 20px 0",
         borderBottom: "none",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 11, color: TOKEN.sageL, letterSpacing: "0.1em", fontWeight: 600 }}>
               芯蒂營養師
             </div>
             <div style={{ fontSize: 20, fontWeight: 800, color: TOKEN.white, letterSpacing: "-0.01em" }}>
-              每日補充排程
+              {clientData.name} 的每日補充排程
             </div>
           </div>
           <ProgressRing total={allKeys.length} done={doneCount} />
         </div>
 
-        {/* Client selector */}
-        <div style={{ overflowX: "auto", paddingBottom: 0 }}>
-          <ClientManager
-            clients={clients}
-            activeId={activeClientId}
-            onSelect={setActiveClientId}
-            onCreate={handleCreateClient}
-            onDelete={handleDeleteClient}
-          />
-        </div>
-
         {/* Tab bar */}
-        <div style={{ display: "flex", gap: 0, marginTop: 8 }}>
-          {[["today","📋 今日排程"], ["manage","⚙️ 管理品項"]].map(([v, label]) => (
-            <button key={v} onClick={() => setView(v)}
-              style={{
-                flex: 1, padding: "10px 0",
-                background: view === v ? TOKEN.cream : "transparent",
-                color: view === v ? TOKEN.forest : TOKEN.sageL,
-                border: "none", cursor: "pointer",
-                fontWeight: 700, fontSize: 13, fontFamily: "inherit",
-                borderRadius: view === v ? "10px 10px 0 0" : 0,
-                transition: "all 0.2s",
-              }}>{label}</button>
-          ))}
+        <div style={{ display: "flex", gap: 0 }}>
+          <div style={{
+            flex: 1, padding: "10px 0", textAlign: "center",
+            background: TOKEN.cream, color: TOKEN.forest,
+            fontWeight: 700, fontSize: 13,
+            borderRadius: "10px 10px 0 0",
+          }}>📋 今日排程</div>
         </div>
       </div>
 
       {/* Content */}
       <div style={{ padding: "20px 16px 40px" }}>
-        {view === "today" ? (
-          <>
-            <div style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20,
-            }}>
-              <span style={{ fontSize: 13, color: TOKEN.gray700, fontWeight: 500 }}>{today}</span>
-              {doneCount === allKeys.length && allKeys.length > 0 && (
-                <span style={{
-                  background: TOKEN.sage, color: "#fff",
-                  borderRadius: 20, padding: "3px 14px", fontSize: 12, fontWeight: 700,
-                }}>🎉 全部完成！</span>
-              )}
-            </div>
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20,
+        }}>
+          <span style={{ fontSize: 13, color: TOKEN.gray700, fontWeight: 500 }}>{today}</span>
+          {doneCount === allKeys.length && allKeys.length > 0 && (
+            <span style={{
+              background: TOKEN.sage, color: "#fff",
+              borderRadius: 20, padding: "3px 14px", fontSize: 12, fontWeight: 700,
+            }}>🎉 全部完成！</span>
+          )}
+        </div>
 
-            {Object.keys(grouped).length === 0 ? (
-              <div style={{
-                textAlign: "center", padding: "60px 20px",
-                color: TOKEN.gray400, fontSize: 14,
-              }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>尚未設定任何補充品</div>
-                <div>請切換到「管理品項」新增保健品</div>
-              </div>
-            ) : (
-              TIME_SLOTS.filter(t => grouped[t]).map(t => (
-                <TimeSection
-                  key={t} time={t} items={grouped[t]}
-                  checked={checked} onToggle={handleToggle}
-                />
-              ))
-            )}
-          </>
+        {Object.keys(grouped).length === 0 ? (
+          <div style={{
+            textAlign: "center", padding: "60px 20px",
+            color: TOKEN.gray400, fontSize: 14,
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📦</div>
+            <div style={{ fontWeight: 600 }}>尚未設定任何補充品</div>
+          </div>
         ) : (
-          <>
-            <div style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16,
-            }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: TOKEN.forest }}>
-                {client?.name} 的品項（{client?.supplements.length || 0} 項）
-              </span>
-              <button onClick={() => { setEditingId(null); setShowForm(true); }}
-                style={{
-                  background: TOKEN.sage, color: "#fff",
-                  border: "none", borderRadius: 10, padding: "8px 16px",
-                  cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "inherit",
-                }}>＋ 新增保健品</button>
-            </div>
-
-            {showForm && (
-              <div style={{
-                background: TOKEN.white, borderRadius: 16, padding: 20, marginBottom: 20,
-                border: `2px solid ${TOKEN.sage}`,
-                boxShadow: "0 4px 20px rgba(107,158,138,0.15)",
-              }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: TOKEN.forest, marginBottom: 16 }}>
-                  {editingId ? "編輯保健品" : "新增保健品"}
-                </div>
-                <SupplementForm
-                  initial={editingId ? client?.supplements.find(s => s.id === editingId) : null}
-                  onSave={handleSaveSupplement}
-                  onCancel={() => { setShowForm(false); setEditingId(null); }}
-                />
-              </div>
-            )}
-
-            {(client?.supplements || []).length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 20px", color: TOKEN.gray400 }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
-                <div>還沒有任何品項，點上方按鈕新增</div>
-              </div>
-            ) : (
-              client.supplements.map(sup => (
-                <div key={sup.id} style={{
-                  background: TOKEN.white, borderRadius: 14,
-                  border: `1.5px solid ${TOKEN.gray200}`,
-                  padding: 14, marginBottom: 12,
-                }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                      background: sup.color + "18", border: `2px solid ${sup.color}50`,
-                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-                    }}>{TYPE_ICONS[sup.type] || "💊"}</div>
-
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 700, fontSize: 15, color: TOKEN.forest }}>{sup.name}</span>
-                        <Badge color={sup.color}>{sup.brand}</Badge>
-                      </div>
-                      <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {sup.schedule.map((s, i) => (
-                          <div key={i} style={{
-                            background: TOKEN.sagePale, borderRadius: 8, padding: "4px 10px",
-                            fontSize: 12, color: TOKEN.forest,
-                          }}>
-                            {TIME_EMOJI[s.time]} {s.time}・{s.dose}
-                            {s.water && <span style={{ color: TOKEN.gray400 }}>・{s.water}</span>}
-                          </div>
-                        ))}
-                      </div>
-                      {sup.note && (
-                        <div style={{ marginTop: 6, fontSize: 11, color: TOKEN.gray400 }}>💡 {sup.note}</div>
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => { setEditingId(sup.id); setShowForm(true); }}
-                        style={{
-                          background: TOKEN.gray50, border: `1px solid ${TOKEN.gray200}`,
-                          borderRadius: 8, padding: "5px 10px", cursor: "pointer",
-                          fontSize: 12, color: TOKEN.gray700, fontFamily: "inherit",
-                        }}>編輯</button>
-                      <button onClick={() => handleDeleteSupplement(sup.id)}
-                        style={{
-                          background: "#FFF0F0", border: "1px solid #FFCDD2",
-                          borderRadius: 8, padding: "5px 10px", cursor: "pointer",
-                          fontSize: 12, color: "#E53935", fontFamily: "inherit",
-                        }}>刪除</button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </>
+          TIME_SLOTS.filter(t => grouped[t]).map(t => (
+            <TimeSection
+              key={t} time={t} items={grouped[t]}
+              checked={checked} onToggle={handleToggle}
+            />
+          ))
         )}
       </div>
     </div>
